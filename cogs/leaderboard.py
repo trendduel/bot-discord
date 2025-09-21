@@ -23,7 +23,7 @@ class Leaderboard(commands.Cog):
         try:
             now = datetime.now(ITALY_TZ)
             logger.debug(f"📅 Controllo pubblicazione classifica - Ora: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')})")
-            if now.weekday() == 6 and now.hour == 20 and now.minute == 22 and now.second < 30:  # Domenica 20:00:00–20:00:30 (CET)
+            if now.weekday() == 6 and now.hour == 20 and now.minute == 35 and now.second < 30:  # Domenica 20:35:00–20:35:30 (modificato per test)
                 logger.info("🕐 Orario pubblicazione classifica raggiunto - avvio processo...")
                 log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
                 if not log_channel:
@@ -127,43 +127,28 @@ class Leaderboard(commands.Cog):
         await self.bot.wait_until_ready()
         logger.info("📊 Task weekly_leaderboard pronto")
 
-    @tasks.loop(hours=72)  # Ogni 3 giorni
+    @tasks.loop(hours=1)
     async def status_update(self):
         try:
             now = datetime.now(ITALY_TZ)
-            logger.info(f"📢 Invio aggiornamento stato - Ora: {now.strftime('%Y-%m-%d %H:%M:%S %Z')}")
-            log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
-            if not log_channel:
-                logger.error(f"Canale mod-logs non trovato: {LOG_CHANNEL_ID}")
-                return
-
-            # Calcola la prossima domenica alle 20:00
-            days_until_sunday = (6 - now.weekday()) % 7
-            next_sunday = (now + timedelta(days=days_until_sunday)).replace(hour=20, minute=0, second=0, microsecond=0)
-            if now.weekday() == 6 and now.hour >= 20:
-                next_sunday += timedelta(days=7)
-
-            # Messaggio di aggiornamento
-            status = "in esecuzione" if self.weekly_leaderboard.is_running() else "non in esecuzione"
-            last_action_text = f"{self.last_action['type'].capitalize()} alle {datetime.fromisoformat(self.last_action['timestamp']).strftime('%d/%m/%Y %H:%M:%S %Z')}" if self.last_action['timestamp'] else "Nessuna azione recente"
-            embed = discord.Embed(
-                title="📢 Aggiornamento Stato Leaderboard",
-                description=(
-                    f"**Stato Task:** {status}\n"
-                    f"**Ora Corrente:** {now.strftime('%d/%m/%Y %H:%M:%S %Z')}\n"
-                    f"**Ultima Azione:** {last_action_text}\n"
-                    f"**Prossima Pubblicazione:** {next_sunday.strftime('%d/%m/%Y alle 20:00 %Z')}"
+            next_sunday = now + timedelta(days=(6 - now.weekday()) if now.weekday() != 6 else 7)
+            next_publish = next_sunday.replace(hour=20, minute=35, second=0, microsecond=0)  # Modificato per test a 20:35
+            time_remaining = next_publish - now
+            await self.bot.change_presence(
+                activity=discord.Activity(
+                    type=discord.ActivityType.watching,
+                    name=f"Prossima classifica: {time_remaining.days}d {time_remaining.seconds//3600}h {(time_remaining.seconds%3600)//60}m"
                 ),
-                color=0x00FFFF
+                status=discord.Status.online
             )
-            if log_channel.permissions_for(log_channel.guild.me).send_messages:
-                await log_channel.send(embed=embed)
-            logger.info("📢 Aggiornamento stato inviato con successo")
+            logger.info(f"📢 Status aggiornato: Prossima classifica in {time_remaining}")
         except Exception as e:
-            logger.error(f"Errore nell'aggiornamento stato: {e}")
-            log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
-            if log_channel and log_channel.permissions_for(log_channel.guild.me).send_messages:
-                await log_channel.send(f"❌ Errore nell'aggiornamento stato: {str(e)[:1000]}")
+            logger.error(f"Errore nell'aggiornamento status: {e}")
+
+    @status_update.before_loop
+    async def before_status_update(self):
+        await self.bot.wait_until_ready()
+        logger.info("📢 Status update pronto")
 
     async def publish_weekly_leaderboard(self, is_automatic=True, custom_week=None, is_test=False):
         try:
