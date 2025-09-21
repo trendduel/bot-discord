@@ -23,7 +23,7 @@ class Leaderboard(commands.Cog):
         try:
             now = datetime.now(ITALY_TZ)
             logger.debug(f"📅 Controllo pubblicazione classifica - Ora: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')})")
-            if now.weekday() == 6 and now.hour == 20 and now.minute == 0 and now.second < 30:  # Domenica 20:00:00–20:00:30
+            if now.weekday() == 6 and now.hour == 20 and now.minute == 13 and now.second < 30:  # Domenica 20:00:00–20:00:30
                 logger.info("🕐 Orario pubblicazione classifica raggiunto - avvio processo...")
                 log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
                 if not log_channel:
