@@ -23,7 +23,7 @@ class Leaderboard(commands.Cog):
         try:
             now = datetime.now(ITALY_TZ)
             logger.debug(f"📅 Controllo pubblicazione classifica - Ora: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')})")
-            if now.weekday() == 6 and now.hour == 20 and now.minute == 13 and now.second < 30:  # Domenica 20:00:00–20:00:30
+            if now.weekday() == 6 and now.hour == 20 and now.minute == 22 and now.second < 30:  # Domenica 20:00:00–20:00:30 (CET)
                 logger.info("🕐 Orario pubblicazione classifica raggiunto - avvio processo...")
                 log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
                 if not log_channel:
@@ -81,47 +81,51 @@ class Leaderboard(commands.Cog):
 
                                 if leaderboard_channel.permissions_for(leaderboard_channel.guild.me).manage_messages:
                                     await message.delete()
-                                    logger.info("🗑️ Messaggio classifica precedente eliminato dal canale leaderboard")
+                                    logger.info("🗑️ Messaggio classifica precedente eliminato")
                                     if log_channel.permissions_for(log_channel.guild.me).send_messages:
-                                        await log_channel.send("🗑️ Messaggio classifica precedente eliminato dal canale leaderboard")
-                                    self.last_action = {"type": "eliminazione", "timestamp": now.isoformat()}
-                                else:
-                                    logger.error("Permessi insufficienti per eliminare il messaggio nel canale leaderboard")
-                                    if log_channel.permissions_for(log_channel.guild.me).send_messages:
-                                        await log_channel.send("❌ Permessi insufficienti per eliminare il messaggio nel canale leaderboard")
+                                        await log_channel.send("🗑️ Messaggio classifica precedente eliminato")
                             except Exception as e:
                                 logger.error(f"Errore nell'archiviazione o eliminazione: {e}")
                                 if log_channel.permissions_for(log_channel.guild.me).send_messages:
-                                    await log_channel.send(f"❌ Errore nell'archiviazione o eliminazione: {str(e)[:1000]}")
-                            break
+                                    await log_channel.send(f"❌ Errore nell'archiviazione o eliminazione: {e}")
 
-                    # Pubblicazione nuova classifica
-                    await self.publish_weekly_leaderboard(is_automatic=True)
-                    logger.info("✅ Classifica pubblicata con successo")
+                    # Genera nuova classifica
+                    leaderboard_data = get_weekly_leaderboard(week_start, week_end)
+                    embed, winners = await create_leaderboard_embed(self.bot, leaderboard_data, week_start, week_end)
+
+                    # Pubblica nuova classifica
+                    if leaderboard_channel.permissions_for(leaderboard_channel.guild.me).send_messages:
+                        message = await leaderboard_channel.send(embed=embed)
+                        logger.info(f"📊 Nuova classifica pubblicata: messaggio {message.id}")
+                        if log_channel.permissions_for(log_channel.guild.me).send_messages:
+                            await log_channel.send(f"📊 Nuova classifica pubblicata: {message.jump_url}")
+
+                        # Menziona vincitori se presenti
+                        if winners:
+                            mentions = " ".join([mention for _, mention, _ in winners])
+                            await leaderboard_channel.send(f"🎉 Congratulazioni ai vincitori: {mentions}! 🏆")
+                            logger.info("🏆 Menzioni vincitori inviate")
+
+                    # Reset metriche settimanali
+                    reset_count = reset_weekly_metrics(week_start, week_end)
+                    logger.info(f"♻️ Reset settimanale: {reset_count} eventi archiviati")
+                    if log_channel.permissions_for(log_channel.guild.me).send_messages:
+                        await log_channel.send(f"♻️ Reset settimanale completato: {reset_count} eventi archiviati")
+
                     self.last_action = {"type": "pubblicazione", "timestamp": now.isoformat()}
 
-                    # Reset dei punti
-                    week_start, week_end = get_week_boundaries()
-                    affected_rows = reset_weekly_metrics(week_start, week_end)
-                    logger.info(f"♻️ Punti settimanali resettati per {week_start.strftime('%d/%m/%Y')} - {week_end.strftime('%d/%m/%Y')}, eventi archiviati: {affected_rows}")
-                    if log_channel.permissions_for(log_channel.guild.me).send_messages:
-                        await log_channel.send(f"♻️ Punti settimanali resettati per {week_start.strftime('%d/%m/%Y')} - {week_end.strftime('%d/%m/%Y')}, eventi archiviati: {affected_rows}")
-                    self.last_action = {"type": "reset", "timestamp": now.isoformat()}
-
                 except Exception as e:
-                    if os.path.exists(lock_file):
-                        os.remove(lock_file)
-                    logger.error(f"Errore nella pubblicazione automatica: {e}")
+                    logger.error(f"Errore nella pubblicazione classifica: {e}")
                     if log_channel.permissions_for(log_channel.guild.me).send_messages:
-                        await log_channel.send(f"❌ Errore nella pubblicazione automatica: {str(e)[:1000]}")
-                    raise e
-            else:
-                logger.debug(f"Condizione pubblicazione non soddisfatta - Ora: {now.hour}:{now.minute}, Giorno: {now.weekday()}")
+                        await log_channel.send(f"❌ Errore pubblicazione classifica: {e}")
+
         except Exception as e:
-            logger.error(f"Errore nel task classifica settimanale: {e}")
-            log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
-            if log_channel and log_channel.permissions_for(log_channel.guild.me).send_messages:
-                await log_channel.send(f"❌ Errore task classifica settimanale: {str(e)[:1000]}")
+            logger.error(f"Errore nel task weekly_leaderboard: {e}")
+
+    @weekly_leaderboard.before_loop
+    async def before_weekly_leaderboard(self):
+        await self.bot.wait_until_ready()
+        logger.info("📊 Task weekly_leaderboard pronto")
 
     @tasks.loop(hours=72)  # Ogni 3 giorni
     async def status_update(self):
