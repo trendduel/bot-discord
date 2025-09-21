@@ -25,10 +25,10 @@ class Leaderboard(commands.Cog):
             now = datetime.now(ITALY_TZ)
             logger.debug(f"📅 Controllo pubblicazione classifica - Ora: {now.strftime('%Y-%m-%d %H:%M:%S %Z')} (UTC: {datetime.now().strftime('%Y-%m-%d %H:%M:%S UTC')})")
             
-            # Verifica se è domenica alle 21:10:00 esatte (con tolleranza di 30 secondi)
+            # Verifica se è domenica alle 20:00:00 esatte (con tolleranza di 30 secondi)
             if (now.weekday() == 6 and 
-                now.hour == 21 and 
-                now.minute == 10 and 
+                now.hour == 20 and 
+                now.minute == 0 and 
                 now.second <= 30):
                 
                 # Controlla se abbiamo già pubblicato oggi per evitare duplicati
@@ -37,14 +37,14 @@ class Leaderboard(commands.Cog):
                     logger.info("⚠️ Classifica già pubblicata oggi - skip")
                     return
                 
-                logger.info("🕙 Orario pubblicazione classifica raggiunto - avvio processo...")
+                logger.info("🕐 Orario pubblicazione classifica raggiunto - avvio processo...")
                 log_channel = self.bot.get_channel(LOG_CHANNEL_ID)
                 if not log_channel:
                     logger.error(f"Canale mod-logs non trovato: {LOG_CHANNEL_ID}")
                     return
 
                 # Lock file con orario esatto per evitare pubblicazioni multiple
-                today_key = now.strftime("%Y-%m-%d-21-10")
+                today_key = now.strftime("%Y-%m-%d-20-00")
                 lock_file = f"leaderboard_published_{today_key}.lock"
                 if os.path.exists(lock_file):
                     try:
@@ -157,10 +157,10 @@ class Leaderboard(commands.Cog):
                 logger.error(f"Canale mod-logs non trovato: {LOG_CHANNEL_ID}")
                 return
 
-            # Calcola la prossima domenica alle 21:10
+            # Calcola la prossima domenica alle 20:00
             days_until_sunday = (6 - now.weekday()) % 7
-            next_sunday = (now + timedelta(days=days_until_sunday)).replace(hour=21, minute=10, second=0, microsecond=0)
-            if now.weekday() == 6 and (now.hour > 21 or (now.hour == 21 and now.minute >= 10)):
+            next_sunday = (now + timedelta(days=days_until_sunday)).replace(hour=20, minute=0, second=0, microsecond=0)
+            if now.weekday() == 6 and (now.hour > 20 or (now.hour == 20 and now.minute >= 0)):
                 next_sunday += timedelta(days=7)
 
             # Messaggio di aggiornamento
@@ -172,7 +172,7 @@ class Leaderboard(commands.Cog):
                     f"**Stato Task:** {status}\n"
                     f"**Ora Corrente:** {now.strftime('%d/%m/%Y %H:%M:%S %Z')}\n"
                     f"**Ultima Azione:** {last_action_text}\n"
-                    f"**Prossima Pubblicazione:** {next_sunday.strftime('%d/%m/%Y alle 21:10 %Z')}"
+                    f"**Prossima Pubblicazione:** {next_sunday.strftime('%d/%m/%Y alle 20:00 %Z')}"
                 ),
                 color=0x00FFFF
             )
