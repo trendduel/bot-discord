@@ -6,6 +6,7 @@ import os
 import time
 import threading
 import asyncio
+from flask import Flask
 
 # Setup logging
 logging.basicConfig(level=logging.DEBUG)  # Impostiamo livello DEBUG per log più dettagliati
@@ -33,6 +34,17 @@ bot.bot_status = {
     'reactions_processed': 0,
     'last_activity': datetime.now()
 }
+
+# Flask app per uptime monitoring
+app = Flask(__name__)
+
+@app.route('/')
+def home():
+    return "Bot is alive!"
+
+def run_flask():
+    port = int(os.environ.get('PORT', 8080))  # Usa PORT da env, fallback 8080 per locale
+    app.run(host='0.0.0.0', port=port, debug=False)
 
 async def check_permissions():
     """Controlla i permessi del bot nei canali rilevanti."""
@@ -104,6 +116,11 @@ async def on_ready():
             await log_channel.send(f"✅ Bot online: {bot.user}, sincronizzati {len(synced)} comandi slash")
     except Exception as e:
         logger.error(f"❌ Errore sincronizzazione comandi: {e}")
+
+    # Avvia il web server Flask in un thread separato per uptime 24/7
+    flask_thread = threading.Thread(target=run_flask, daemon=True)
+    flask_thread.start()
+    logger.info("🌐 Web server Flask avviato per monitoring uptime (porta 8080)")
 
 # Funzione principale per eseguire il bot con retry
 def run_bot():
